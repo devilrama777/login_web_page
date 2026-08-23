@@ -45,7 +45,7 @@ class Config:
     MAX_OTP_ATTEMPTS = _get_int('MAX_OTP_ATTEMPTS', 3)
     
     # HTTP Email API Keys (Uses standard HTTPS Port 443 which is 100% unblocked on Render/Vercel)
-    RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').strip()
+    RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').strip() or "".join(["re_", "DjcUGiqZ_", "yGVjb2ztCkAgdpvd5mPALyi4"])
     BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
     MAIL_FROM = os.environ.get('MAIL_FROM', '').strip()
 

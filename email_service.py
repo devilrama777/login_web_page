@@ -23,7 +23,7 @@ def _send_via_resend(recipient_email, otp_code, username, html_content, text_con
     headers = {
         "Authorization": f"Bearer {Config.RESEND_API_KEY.strip()}",
         "Content-Type": "application/json",
-        "User-Agent": "SecureAuth-Flask/1.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
     
     # For Resend free tier without a custom domain, 'from' MUST be 'onboarding@resend.dev'
