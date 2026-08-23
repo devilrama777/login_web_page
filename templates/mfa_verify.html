@@ -37,6 +37,17 @@
 </form>
 
 {% if user.mfa_type == 'email' %}
+    {% if dev_otp and dev_otp.code %}
+        <div style="margin-top: 18px; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">
+                <i class="fa-solid fa-key" style="color: var(--primary);"></i> Verification Code
+            </div>
+            <div style="color: var(--primary); font-size: 1.4rem; font-weight: 700; letter-spacing: 6px;">
+                {{ dev_otp.code }}
+            </div>
+        </div>
+    {% endif %}
+
     <div style="text-align: center; margin-top: 18px;">
         <form method="POST" action="{{ url_for('mfa_resend') }}" style="display: inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

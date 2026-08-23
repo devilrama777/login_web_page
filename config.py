@@ -44,7 +44,7 @@ class Config:
     LOCKOUT_DURATION_MINUTES = _get_int('LOCKOUT_DURATION_MINUTES', 15)
     MAX_OTP_ATTEMPTS = _get_int('MAX_OTP_ATTEMPTS', 3)
     
-    # HTTP Email API Keys (Ideal for Vercel serverless deployment where SMTP ports are restricted)
+    # HTTP Email API Keys (Uses standard HTTPS Port 443 which is 100% unblocked on Render/Vercel)
     RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').strip()
     BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
     MAIL_FROM = os.environ.get('MAIL_FROM', '').strip()

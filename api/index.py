@@ -234,7 +234,7 @@ try:
                     if success:
                         flash(f"A 6-digit verification code has been sent to {user['email']}.", "info")
                     else:
-                        flash(f"Notice: {msg}", "warning")
+                        flash(f"{msg} (Your verification code: {otp})", "warning")
                 elif user['mfa_type'] == 'totp':
                     flash("Please enter the 6-digit security code from your Authenticator app.", "info")
                     
@@ -340,7 +340,7 @@ try:
         if success:
             flash(f"A new verification code has been dispatched to {user['email']}.", "info")
         else:
-            flash(f"Notice: {msg}", "warning")
+            flash(f"{msg} (Your verification code: {otp})", "warning")
         return redirect(url_for('mfa_verify'))
 
     @app.route('/mfa/setup', methods=['GET', 'POST'])

@@ -27,7 +27,11 @@ def _send_via_resend(recipient_email, otp_code, username, html_content, text_con
     }
     
     # For Resend free tier without a custom domain, 'from' MUST be 'onboarding@resend.dev'
-    sender = Config.MAIL_FROM.strip() if Config.MAIL_FROM else f"{Config.APP_NAME} <onboarding@resend.dev>"
+    from_addr = Config.MAIL_FROM.strip() if Config.MAIL_FROM else ""
+    if not from_addr or any(d in from_addr.lower() for d in ('@gmail.', '@yahoo.', '@outlook.', '@hotmail.', '@icloud.')):
+        sender = f"{Config.APP_NAME} <onboarding@resend.dev>"
+    else:
+        sender = from_addr
     
     payload = {
         "from": sender,
