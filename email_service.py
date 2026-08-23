@@ -1,0 +1,186 @@
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import json
+import urllib.request
+import urllib.error
+import logging
+from datetime import datetime
+from config import Config
+
+logger = logging.getLogger(__name__)
+
+# In-memory storage for developer convenience / fallback demo
+DEV_LATEST_OTPS = {}
+
+def get_dev_latest_otp(email):
+    """Retrieve the most recent OTP for testing convenience."""
+    return DEV_LATEST_OTPS.get(email)
+
+def _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject):
+    """Dispatch email via Resend HTTP REST API (Ideal for Vercel / serverless)."""
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {Config.RESEND_API_KEY.strip()}",
+        "Content-Type": "application/json",
+        "User-Agent": "SecureAuth-Flask/1.0"
+    }
+    
+    # For Resend free tier without a custom domain, 'from' MUST be 'onboarding@resend.dev'
+    sender = Config.MAIL_FROM.strip() if Config.MAIL_FROM else f"{Config.APP_NAME} <onboarding@resend.dev>"
+    
+    payload = {
+        "from": sender,
+        "to": [recipient_email.strip()],
+        "subject": subject,
+        "html": html_content,
+        "text": text_content
+    }
+    
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res_body = response.read().decode('utf-8')
+            print(f"[EMAIL SERVICE - RESEND] OTP successfully sent to {recipient_email}. Response: {res_body}")
+            return True, "Verification email delivered to your inbox."
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8')
+        try:
+            err_json = json.loads(err_body)
+            err_msg = err_json.get('message', err_body)
+        except Exception:
+            err_msg = err_body
+        print(f"[EMAIL SERVICE ERROR - RESEND] HTTP {e.code}: {err_msg}")
+        return False, f"Resend API Error: {err_msg}"
+    except Exception as e:
+        print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
+        return False, f"Resend Error: {str(e)}"
+
+def _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject):
+    """Dispatch email via Brevo / Sendinblue HTTP REST API."""
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "api-key": Config.BREVO_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "sender": {"name": Config.APP_NAME, "email": Config.MAIL_FROM or "no-reply@secureauth.local"},
+        "to": [{"email": recipient_email, "name": username}],
+        "subject": subject,
+        "htmlContent": html_content,
+        "textContent": text_content
+    }
+    
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
+    with urllib.request.urlopen(req, timeout=10) as response:
+        if response.status in (200, 201):
+            print(f"[EMAIL SERVICE - BREVO] OTP successfully sent to {recipient_email}")
+            return True, "Email dispatched via Brevo API."
+        else:
+            return False, f"Brevo API returned status {response.status}"
+
+def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5):
+    """
+    Send real-time OTP to recipient email.
+    Supports:
+    1. Resend HTTP API (Vercel recommended)
+    2. Brevo HTTP API
+    3. smtplib (Gmail, Outlook, custom SMTP)
+    """
+    DEV_LATEST_OTPS[recipient_email] = {
+        'code': otp_code,
+        'timestamp': datetime.now().isoformat(),
+        'username': username
+    }
+    
+    subject = f"Your {Config.APP_NAME} Verification Code: {otp_code}"
+    
+    # HTML formatted email body
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 20px; }}
+            .card {{ max-width: 500px; margin: 0 auto; background-color: #1e293b; border-radius: 12px; padding: 32px; border: 1px solid #334155; }}
+            .header {{ font-size: 20px; font-weight: bold; color: #38bdf8; margin-bottom: 20px; text-align: center; }}
+            .otp-box {{ background: #0f172a; border: 2px dashed #38bdf8; border-radius: 8px; font-size: 32px; font-weight: 800; letter-spacing: 8px; text-align: center; padding: 16px; margin: 24px 0; color: #38bdf8; }}
+            .footer {{ font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="header">{Config.APP_NAME} Security</div>
+            <p>Hello <strong>{username}</strong>,</p>
+            <p>Your one-time multi-factor authentication (MFA) verification code is:</p>
+            <div class="otp-box">{otp_code}</div>
+            <p>This code will expire in <strong>{expiry_minutes} minutes</strong>. If you did not request this login, please secure your account immediately.</p>
+            <div class="footer">
+                &copy; {datetime.now().year} {Config.APP_NAME}. Protected with multi-factor authentication.
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    Hello {username},
+
+    Your {Config.APP_NAME} verification code is: {otp_code}
+
+    This code is valid for {expiry_minutes} minutes.
+    If you did not request this code, please secure your account immediately.
+    """
+
+    # 1. Check for Resend API Key (Vercel Cloud native)
+    if Config.RESEND_API_KEY:
+        try:
+            return _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
+        except Exception as e:
+            print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
+            return False, f"Resend API Error: {str(e)}"
+
+    # 2. Check for Brevo API Key
+    if Config.BREVO_API_KEY:
+        try:
+            return _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject)
+        except Exception as e:
+            print(f"[EMAIL SERVICE ERROR - BREVO] {e}")
+            return False, f"Brevo API Error: {str(e)}"
+
+    # 3. Check for smtplib credentials (Gmail, Outlook, etc.)
+    if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = Config.MAIL_FROM or Config.SMTP_USERNAME
+            msg["To"] = recipient_email
+            
+            part1 = MIMEText(text_content, "plain")
+            part2 = MIMEText(html_content, "html")
+            msg.attach(part1)
+            msg.attach(part2)
+            
+            if int(Config.SMTP_PORT) == 465:
+                with smtplib.SMTP_SSL(Config.SMTP_SERVER, Config.SMTP_PORT, timeout=15) as server:
+                    server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT, timeout=15) as server:
+                    if Config.SMTP_USE_TLS:
+                        server.starttls()
+                    server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
+                    server.send_message(msg)
+                
+            print(f"[EMAIL SERVICE - SMTP] Successfully sent OTP email to {recipient_email}")
+            return True, "Verification code sent to your email."
+        except Exception as e:
+            error_details = str(e)
+            print(f"[EMAIL SERVICE ERROR - SMTP] Failed to send email via SMTP: {error_details}")
+            return False, f"SMTP Error: {error_details}"
+
+    # 4. If nothing configured
+    err_msg = "No email credentials configured. Please set SMTP_USERNAME/SMTP_PASSWORD (for Gmail/SMTP) or RESEND_API_KEY in .env."
+    print(f"[EMAIL SERVICE WARNING] {err_msg}")
+    return False, err_msg

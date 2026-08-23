@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Security Dashboard - {{ app_name }}{% endblock %}
+{% block card_class %}auth-card-wide{% endblock %}
+
+{% block content %}
+<div class="card-header" style="text-align: left; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+    <div>
+        <div class="card-badge" style="background: rgba(52, 211, 153, 0.15); border-color: rgba(52, 211, 153, 0.3); color: var(--accent-green);">
+            <i class="fa-solid fa-shield-check"></i> Authenticated & Protected
+        </div>
+        <h1 class="card-title">Security Dashboard</h1>
+        <p class="card-subtitle">Manage your session security, multi-factor settings, and monitor account activity.</p>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm" id="btn_logout_dash">
+            <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards Grid -->
+<div class="dashboard-grid">
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">User Account</span>
+            <i class="fa-solid fa-user-circle stat-icon"></i>
+        </div>
+        <div class="stat-value" style="font-size: 1.3rem;">{{ user.username }}</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">{{ user.email }}</div>
+        <div style="margin-top: 12px;">
+            <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Verified User</span>
+            <span class="badge badge-info"><i class="fa-solid fa-database"></i> SQLite Encrypted</span>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">MFA Protection Status</span>
+            <i class="fa-solid fa-shield-halved stat-icon"></i>
+        </div>
+        <div class="stat-value" style="font-size: 1.3rem;">
+            {% if user.is_mfa_enabled %}
+                {% if user.mfa_type == 'totp' %}
+                    <span style="color: var(--accent-green);">Authenticator App</span>
+                {% else %}
+                    <span style="color: var(--primary);">Email OTP (smtplib)</span>
+                {% endif %}
+            {% else %}
+                <span style="color: var(--accent-amber);">Disabled</span>
+            {% endif %}
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+            Enforced on every login session.
+        </div>
+        <div style="margin-top: 12px;">
+            <span class="badge badge-info">
+                <i class="fa-solid fa-key"></i> {{ 'TOTP Active (pyotp)' if user.mfa_type == 'totp' else 'Email Verification Active' }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- MFA Settings Panel -->
+<div style="background: rgba(13, 17, 28, 0.7); border: 1px solid var(--bg-card-border); border-radius: var(--radius-md); padding: 22px; margin-bottom: 28px;">
+    <h3 style="font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-sliders" style="color: var(--primary);"></i> Multi-Factor Authentication Configuration
+    </h3>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 18px;">
+        Switch your preferred second authentication layer between Authenticator App (TOTP) and Email One-Time Passwords.
+    </p>
+
+    <form method="POST" action="{{ url_for('toggle_mfa') }}" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <select name="mfa_type" class="form-input" style="max-width: 260px; padding: 10px 14px;">
+            <option value="email" {% if user.mfa_type == 'email' and user.is_mfa_enabled %}selected{% endif %}>Email OTP (smtplib)</option>
+            <option value="totp" {% if user.mfa_type == 'totp' and user.is_mfa_enabled %}selected{% endif %}>Authenticator App (pyotp)</option>
+            <option value="disabled" {% if not user.is_mfa_enabled %}selected{% endif %}>Disable MFA (Not Recommended)</option>
+        </select>
+        
+        <button type="submit" class="btn btn-outline btn-sm" id="btn_update_mfa">
+            <i class="fa-solid fa-floppy-disk"></i> Update MFA Preference
+        </button>
+        
+        {% if user.mfa_type == 'totp' %}
+            <a href="{{ url_for('mfa_setup') }}" class="btn btn-outline btn-sm" style="color: var(--primary); border-color: rgba(56, 189, 248, 0.3);">
+                <i class="fa-solid fa-qrcode"></i> Re-pair QR Code
+            </a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Security Audit Log (Roadmap 01 & 07) -->
+<div>
+    <h3 style="font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-clock-rotate-left" style="color: var(--secondary);"></i> Real-Time Security Audit Log
+    </h3>
+    <div class="table-responsive">
+        <table class="security-table">
+            <thead>
+                <tr>
+                    <th>Event</th>
+                    <th>IP Address</th>
+                    <th>Details</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in audit_logs %}
+                    <tr>
+                        <td>
+                            {% if 'SUCCESS' in log.action or 'COMPLETE' in log.action or 'REGISTER' in log.action %}
+                                <span class="badge badge-success"><i class="fa-solid fa-check"></i> {{ log.action }}</span>
+                            {% elif 'FAILED' in log.action or 'LOCKED' in log.action %}
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3);">
+                                    <i class="fa-solid fa-triangle-exclamation"></i> {{ log.action }}
+                                </span>
+                            {% else %}
+                                <span class="badge badge-info"><i class="fa-solid fa-info-circle"></i> {{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code style="color: var(--primary); font-size: 0.8rem;">{{ log.ip_address or '127.0.0.1' }}</code></td>
+                        <td style="color: var(--text-muted); font-size: 0.83rem;">{{ log.details or '-' }}</td>
+                        <td style="color: var(--text-subtle); font-size: 0.8rem;">{{ log.timestamp }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">No security audit events recorded yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

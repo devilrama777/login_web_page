@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In - MFA Security{% endblock %}
+
+{% block content %}
+<div class="card-header">
+    <div class="card-badge">
+        <i class="fa-solid fa-lock"></i> Multi-Factor Protected
+    </div>
+    <h1 class="card-title">Welcome Back</h1>
+    <p class="card-subtitle">Enter your credentials to access your secure portal.</p>
+</div>
+
+<form method="POST" action="{{ url_for('login') }}" id="login_form" novalidate>
+    <!-- CSRF Token (Roadmap 07) -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+        <label for="identifier" class="form-label">Username or Email</label>
+        <div class="input-group">
+            <input type="text" 
+                   class="form-input" 
+                   id="identifier" 
+                   name="identifier" 
+                   placeholder="e.g. alex_dev or user@example.com" 
+                   value="{{ identifier or '' }}" 
+                   required 
+                   autofocus 
+                   autocomplete="username">
+            <span class="input-icon"><i class="fa-solid fa-user"></i></span>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label for="password" class="form-label" style="margin-bottom: 0;">Password</label>
+        </div>
+        <div class="input-group">
+            <input type="password" 
+                   class="form-input" 
+                   id="password" 
+                   name="password" 
+                   placeholder="••••••••••••" 
+                   required 
+                   autocomplete="current-password">
+            <span class="input-icon"><i class="fa-solid fa-key"></i></span>
+            <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility" id="toggle_login_password">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="btn_sign_in" style="margin-top: 10px;">
+        <i class="fa-solid fa-arrow-right-to-bracket"></i> Continue to MFA
+    </button>
+</form>
+
+<div class="auth-footer">
+    Don't have an account? <a href="{{ url_for('register') }}" id="link_register">Create an account</a>
+</div>
+{% endblock %}

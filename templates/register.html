@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account - MFA Security{% endblock %}
+
+{% block content %}
+<div class="card-header">
+    <div class="card-badge">
+        <i class="fa-solid fa-user-plus"></i> Secure Registration
+    </div>
+    <h1 class="card-title">Create Account</h1>
+    <p class="card-subtitle">Set up your credentials and select your MFA verification preference.</p>
+</div>
+
+<form method="POST" action="{{ url_for('register') }}" id="register_form" novalidate>
+    <!-- CSRF Token (Roadmap 07) -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+        <label for="username" class="form-label">Username</label>
+        <div class="input-group">
+            <input type="text" 
+                   class="form-input" 
+                   id="username" 
+                   name="username" 
+                   placeholder="e.g. johndoe" 
+                   value="{{ username or '' }}" 
+                   required 
+                   autocomplete="username">
+            <span class="input-icon"><i class="fa-solid fa-user"></i></span>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="email" class="form-label">Email Address</label>
+        <div class="input-group">
+            <input type="email" 
+                   class="form-input" 
+                   id="email" 
+                   name="email" 
+                   placeholder="e.g. john@example.com" 
+                   value="{{ email or '' }}" 
+                   required 
+                   autocomplete="email">
+            <span class="input-icon"><i class="fa-solid fa-envelope"></i></span>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="reg_password" class="form-label">Password</label>
+        <div class="input-group">
+            <input type="password" 
+                   class="form-input" 
+                   id="reg_password" 
+                   name="password" 
+                   placeholder="••••••••••••" 
+                   required 
+                   autocomplete="new-password">
+            <span class="input-icon"><i class="fa-solid fa-key"></i></span>
+            <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+        </div>
+        <!-- Live Strength Meter -->
+        <div class="password-strength-container">
+            <div class="strength-bar-track">
+                <div class="strength-bar-fill" id="strength_bar_fill"></div>
+            </div>
+            <div class="strength-feedback" id="strength_text">
+                Requirements: 8+ chars, upper, lower, number, symbol
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="confirm_password" class="form-label">Confirm Password</label>
+        <div class="input-group">
+            <input type="password" 
+                   class="form-input" 
+                   id="confirm_password" 
+                   name="confirm_password" 
+                   placeholder="••••••••••••" 
+                   required 
+                   autocomplete="new-password">
+            <span class="input-icon"><i class="fa-solid fa-shield-check"></i></span>
+            <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MFA Preference Selection -->
+    <div class="form-group">
+        <label class="form-label">Choose 2-Step Verification Method</label>
+        <div class="radio-cards">
+            <label class="radio-card-label">
+                <input type="radio" name="mfa_type" value="email" {% if mfa_type != 'totp' %}checked{% endif %}>
+                <div class="radio-icon"><i class="fa-solid fa-paper-plane"></i></div>
+                <div class="radio-title">Email OTP</div>
+                <div class="radio-desc">6-digit code via smtplib</div>
+            </label>
+
+            <label class="radio-card-label">
+                <input type="radio" name="mfa_type" value="totp" {% if mfa_type == 'totp' %}checked{% endif %}>
+                <div class="radio-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                <div class="radio-title">Authenticator App</div>
+                <div class="radio-desc">TOTP via pyotp QR Code</div>
+            </label>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="btn_register" style="margin-top: 6px;">
+        <i class="fa-solid fa-user-shield"></i> Create Protected Account
+    </button>
+</form>
+
+<div class="auth-footer">
+    Already have an account? <a href="{{ url_for('login') }}" id="link_login">Sign in instead</a>
+</div>
+{% endblock %}

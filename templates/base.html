@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MFA Secure Portal{% endblock %} - {{ app_name }}</title>
+    
+    <!-- SEO & Metadata -->
+    <meta name="description" content="Secure Login Portal with Multi-Factor Authentication (TOTP and Email OTP) powered by Flask and SQLite.">
+    <meta name="theme-color" content="#090d16">
+    
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Core Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Background Ambient Glow Effect -->
+    <div class="bg-ambient">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <header>
+        <nav class="navbar" aria-label="Main Navigation">
+            <a href="{{ url_for('index') }}" class="nav-brand" id="nav_brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <span>{{ app_name }}</span>
+            </a>
+            
+            <div class="nav-links">
+                {% if current_user %}
+                    <span class="nav-link" style="color: var(--primary);">
+                        <i class="fa-solid fa-user-check"></i> {{ current_user.username }}
+                    </span>
+                    <a href="{{ url_for('dashboard') }}" class="nav-link" id="nav_dashboard">
+                        <i class="fa-solid fa-gauge-high"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="nav-link" id="nav_logout">
+                        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="nav-link" id="nav_login">Sign In</a>
+                    <a href="{{ url_for('register') }}" class="nav-link" id="nav_register" style="color: var(--primary); font-weight: 600;">Create Account</a>
+                {% endif %}
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-wrapper" id="main_content">
+        <div class="auth-card {% block card_class %}{% endblock %}">
+            <!-- Flash Message Toasts -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-container" id="flash_messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}" role="alert">
+                                <span>
+                                    {% if category == 'danger' %}
+                                        <i class="fa-solid fa-circle-exclamation"></i>
+                                    {% elif category == 'success' %}
+                                        <i class="fa-solid fa-circle-check"></i>
+                                    {% elif category == 'warning' %}
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                    {% else %}
+                                        <i class="fa-solid fa-circle-info"></i>
+                                    {% endif %}
+                                    {{ message }}
+                                </span>
+                                <button type="button" class="alert-close" aria-label="Close message">&times;</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Core Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

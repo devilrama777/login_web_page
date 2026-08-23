@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Setup Authenticator App - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card-header">
+    <div class="card-badge" style="background: rgba(52, 211, 153, 0.15); border-color: rgba(52, 211, 153, 0.3); color: var(--accent-green);">
+        <i class="fa-solid fa-qrcode"></i> Authenticator Pairing
+    </div>
+    <h1 class="card-title">Setup 2-Step Verification</h1>
+    <p class="card-subtitle">Scan the QR code with Google Authenticator, Microsoft Authenticator, or 1Password.</p>
+</div>
+
+<div class="qr-container">
+    <div class="qr-image-wrapper">
+        <img src="{{ qr_data_url }}" alt="TOTP QR Code for Google Authenticator" id="totp_qr_image">
+    </div>
+    
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+        Can't scan? Enter this secret key manually:
+    </p>
+    <div class="secret-key-box">
+        <span id="secret_key_text">{{ secret }}</span>
+        <button type="button" class="btn btn-outline btn-sm" id="copy_secret_btn" style="padding: 4px 8px; font-size: 0.75rem;">
+            <i class="fa-regular fa-copy"></i> Copy
+        </button>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('mfa_setup') }}" id="otp_form">
+    <!-- CSRF Token (Roadmap 07) -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label class="form-label" style="text-align: center; display: block; margin-top: 15px;">
+        Enter the 6-digit code shown in your Authenticator app to confirm:
+    </label>
+
+    <!-- 6-Box OTP Inputs (Roadmap 04) -->
+    <div class="otp-container" id="otp_inputs">
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-digit" name="code_1" id="otp_1" required autofocus autocomplete="one-time-code">
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-digit" name="code_2" id="otp_2" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-digit" name="code_3" id="otp_3" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-digit" name="code_4" id="otp_4" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-digit" name="code_5" id="otp_5" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-digit" name="code_6" id="otp_6" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="btn_confirm_mfa_setup">
+        <i class="fa-solid fa-circle-check"></i> Verify & Activate TOTP
+    </button>
+</form>
+
+<div class="auth-footer">
+    <a href="{{ url_for('dashboard' if current_user else 'login') }}">Cancel and return</a>
+</div>
+{% endblock %}
