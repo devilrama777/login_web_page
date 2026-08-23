@@ -232,9 +232,9 @@ try:
                 if user['mfa_type'] == 'email':
                     success, msg, otp = generate_and_send_email_otp(user)
                     if success:
-                        flash(f"A 6-digit verification code has been sent to {user['email']}.", "info")
+                        flash(f"A 6-digit verification code has been sent to your email ({user['email']}).", "info")
                     else:
-                        flash(f"{msg} (Your verification code: {otp})", "warning")
+                        flash(f"Notice: {msg}", "warning")
                 elif user['mfa_type'] == 'totp':
                     flash("Please enter the 6-digit security code from your Authenticator app.", "info")
                     
@@ -317,9 +317,7 @@ try:
                 flash(msg, "danger")
                 return render_template('mfa_verify.html', user=user)
                 
-        # For dev assistance, retrieve latest simulated code if in dev mode
-        dev_otp = get_dev_latest_otp(user['email']) if user['mfa_type'] == 'email' else None
-        return render_template('mfa_verify.html', user=user, dev_otp=dev_otp)
+        return render_template('mfa_verify.html', user=user)
 
     @app.route('/mfa/resend', methods=['POST'])
     def mfa_resend():
@@ -340,7 +338,7 @@ try:
         if success:
             flash(f"A new verification code has been dispatched to {user['email']}.", "info")
         else:
-            flash(f"{msg} (Your verification code: {otp})", "warning")
+            flash(f"Notice: {msg}", "warning")
         return redirect(url_for('mfa_verify'))
 
     @app.route('/mfa/setup', methods=['GET', 'POST'])
