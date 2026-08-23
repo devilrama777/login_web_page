@@ -133,23 +133,26 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
     If you did not request this code, please secure your account immediately.
     """
 
-    # 1. Check for Resend API Key (Vercel Cloud native)
+    # 1. Try Resend HTTP API (if configured)
     if Config.RESEND_API_KEY:
         try:
-            return _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
+            success, msg = _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
+            if success:
+                return True, msg
+            print(f"[EMAIL SERVICE NOTICE] Resend delivery returned notice: {msg}. Checking SMTP fallback...")
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
-            return False, f"Resend API Error: {str(e)}"
 
-    # 2. Check for Brevo API Key
+    # 2. Try Brevo HTTP API (if configured)
     if Config.BREVO_API_KEY:
         try:
-            return _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject)
+            success, msg = _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject)
+            if success:
+                return True, msg
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - BREVO] {e}")
-            return False, f"Brevo API Error: {str(e)}"
 
-    # 3. Check for smtplib credentials (Gmail, Outlook, etc.)
+    # 3. Try smtplib credentials (Gmail, Outlook, custom SMTP)
     if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
         try:
             msg = MIMEMultipart("alternative")
@@ -181,6 +184,6 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
             return False, f"SMTP Error: {error_details}"
 
     # 4. If nothing configured
-    err_msg = "No email credentials configured. Please set SMTP_USERNAME/SMTP_PASSWORD (for Gmail/SMTP) or RESEND_API_KEY in .env."
+    err_msg = "No email credentials configured. Please set SMTP_USERNAME/SMTP_PASSWORD (for Gmail/SMTP) or RESEND_API_KEY in environment variables."
     print(f"[EMAIL SERVICE WARNING] {err_msg}")
     return False, err_msg
