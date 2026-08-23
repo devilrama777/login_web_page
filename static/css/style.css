@@ -250,7 +250,7 @@ body {
 
 .form-input {
   width: 100%;
-  padding: 13px 16px 13px 44px;
+  padding: 13px 44px 13px 44px;
   background: var(--bg-input);
   border: 1px solid var(--bg-card-border);
   border-radius: var(--radius-md);
@@ -279,15 +279,22 @@ body {
   border: none;
   color: var(--text-subtle);
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: var(--transition);
+  z-index: 10;
+  border-radius: 6px;
 }
 
 .password-toggle-btn:hover {
-  color: var(--text-main);
+  color: var(--primary);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.password-toggle-btn:active {
+  transform: scale(0.92);
 }
 
 /* Password Strength Indicator */

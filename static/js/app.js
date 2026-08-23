@@ -4,11 +4,14 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      const input = btn.previousElementSibling;
-      if (input && (input.type === 'password' || input.type === 'text')) {
+      e.stopPropagation();
+      const group = btn.closest('.input-group') || btn.parentElement;
+      const input = group ? group.querySelector('input') : null;
+      if (input) {
         const isPassword = input.type === 'password';
         input.type = isPassword ? 'text' : 'password';
         btn.innerHTML = isPassword ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+        btn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
       }
     });
   });
