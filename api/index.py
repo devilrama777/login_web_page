@@ -106,13 +106,10 @@ try:
     # Authentication Routes
     # ----------------------------------------------------------------------
 
-    @app.route('/')
-    @app.route('/api/index')
-    @app.route('/api')
-    def index():
-        if g.get('current_user'):
-            return redirect(url_for('dashboard'))
-        return redirect(url_for('login'))
+    @app.route('/debug-env')
+    def debug_env():
+        env_dump = {k: str(v) for k, v in request.environ.items() if not k.startswith('wsgi.')}
+        return jsonify(env_dump)
 
     @app.route('/register', methods=['GET', 'POST'])
     def register():
@@ -165,7 +162,6 @@ try:
                 user = get_user_by_id(user_id)
                 
                 if mfa_type == 'totp':
-                    # Direct user to scan QR code and complete MFA enrollment
                     session['pre_auth_user_id'] = user_id
                     session['pre_auth_expires'] = (datetime.now() + timedelta(minutes=10)).isoformat()
                     flash("Account registered successfully! Now scan the QR code to finish TOTP MFA setup.", "success")
@@ -179,6 +175,14 @@ try:
                 return render_template('register.html', username=username, email=email, mfa_type=mfa_type)
                 
         return render_template('register.html', mfa_type='email')
+
+    @app.route('/', methods=['GET', 'POST'])
+    @app.route('/index', methods=['GET', 'POST'])
+    @app.route('/api/index', methods=['GET', 'POST'])
+    @app.route('/api', methods=['GET', 'POST'])
+    def index():
+        """Root endpoint that delegates directly to login handler."""
+        return login()
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
