@@ -182,17 +182,27 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
     If you did not request this code, please secure your account immediately.
     """
 
-    # 1. Try Resend HTTP API (if configured)
+    # 1. Try Gmail / SMTP credentials first (Sends to ANY registered email address)
+    if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
+        try:
+            success, msg = _send_via_smtp(recipient_email, subject, html_content, text_content)
+            if success:
+                return True, msg
+            print(f"[EMAIL SERVICE NOTICE] SMTP dispatch notice: {msg}. Attempting HTTP fallback...")
+        except Exception as e:
+            print(f"[EMAIL SERVICE ERROR - SMTP] {e}")
+
+    # 2. Try Resend HTTP API (if configured)
     if Config.RESEND_API_KEY:
         try:
             success, msg = _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
             if success:
                 return True, msg
-            print(f"[EMAIL SERVICE NOTICE] Resend delivery returned notice: {msg}. Checking SMTP fallback...")
+            print(f"[EMAIL SERVICE NOTICE] Resend delivery returned notice: {msg}. Checking alternate fallback...")
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
 
-    # 2. Try Brevo HTTP API (if configured)
+    # 3. Try Brevo HTTP API (if configured)
     if Config.BREVO_API_KEY:
         try:
             success, msg = _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject)
@@ -201,11 +211,7 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - BREVO] {e}")
 
-    # 3. Try smtplib credentials (Gmail, Outlook, custom SMTP)
-    if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
-        return _send_via_smtp(recipient_email, subject, html_content, text_content)
-
-    # 4. If nothing configured
-    err_msg = "No email credentials configured. Please set SMTP_USERNAME and SMTP_PASSWORD (Google App Password) in environment variables."
+    # 4. If nothing delivered
+    err_msg = "Could not deliver verification code. Please check your email address or try again."
     print(f"[EMAIL SERVICE WARNING] {err_msg}")
     return False, err_msg

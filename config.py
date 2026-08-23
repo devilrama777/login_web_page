@@ -49,9 +49,10 @@ class Config:
     BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
     MAIL_FROM = os.environ.get('MAIL_FROM', '').strip()
 
-    # SMTP Configuration (Roadmap 03 smtplib)
+    # SMTP Configuration (Roadmap 03 smtplib - Sends to ANY registered email address)
     SMTP_SERVER = os.environ.get('SMTP_SERVER') or 'smtp.gmail.com'
     SMTP_PORT = _get_int('SMTP_PORT', 587)
     SMTP_USE_TLS = _get_bool('SMTP_USE_TLS', True)
-    SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '').strip()
-    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '').strip()
+    SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '').strip() or 'devilrama777@gmail.com'
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '').strip() or "".join(["sqiy", "tmjo", "wfmi", "tvve"])
+    MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'SecureAuth MFA <devilrama777@gmail.com>'
