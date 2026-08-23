@@ -108,11 +108,6 @@ try:
     # Authentication Routes
     # ----------------------------------------------------------------------
 
-    @app.route('/debug-env')
-    def debug_env():
-        env_dump = {k: str(v) for k, v in request.environ.items() if not k.startswith('wsgi.')}
-        return jsonify(env_dump)
-
     @app.route('/register', methods=['GET', 'POST'])
     def register():
         """
