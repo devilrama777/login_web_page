@@ -25,6 +25,8 @@ app = Flask(
 )
 app.config.from_object(Config)
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 class VercelPrefixMiddleware:
     """Normalize PATH_INFO when invoked from Vercel serverless rewrites."""
     def __init__(self, wsgi_app):
@@ -38,9 +40,11 @@ class VercelPrefixMiddleware:
             environ['PATH_INFO'] = path[10:] or '/'
         elif path.startswith('/api'):
             environ['PATH_INFO'] = path[4:] or '/'
+        elif path.startswith('/index.py'):
+            environ['PATH_INFO'] = path[9:] or '/'
         return self.wsgi_app(environ, start_response)
 
-app.wsgi_app = VercelPrefixMiddleware(app.wsgi_app)
+app.wsgi_app = ProxyFix(VercelPrefixMiddleware(app.wsgi_app), x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 @app.before_request
 def security_middleware():
