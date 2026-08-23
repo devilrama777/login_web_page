@@ -16,18 +16,28 @@ from auth import (
 )
 from email_service import get_dev_latest_otp
 
-app = Flask(__name__)
-app.config.from_object(Config)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Initialize database schema at startup
-with app.app_context():
-    init_db()
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, 'templates'),
+    static_folder=os.path.join(BASE_DIR, 'static')
+)
+app.config.from_object(Config)
 
 @app.before_request
 def security_middleware():
     """
     Execute security checks and CSRF validation before every request (Roadmap 07).
     """
+    # 0. Ensure database tables exist safely on first request
+    if not getattr(app, '_db_initialized', False):
+        try:
+            init_db()
+            app._db_initialized = True
+        except Exception as e:
+            print(f"[DB INIT ERROR] {e}")
+
     # 1. CSRF Protection for unsafe HTTP methods
     if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
         # Allow test client or API endpoints with json if needed, otherwise require valid CSRF

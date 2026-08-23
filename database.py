@@ -6,20 +6,17 @@ from config import Config
 
 def get_db_path():
     """Resolve database path with automatic fallback for serverless read-only environments."""
+    if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.environ.get('LAMBDA_TASK_ROOT'):
+        return '/tmp/auth.db'
+        
     path = Config.DB_PATH
     try:
         dir_name = os.path.dirname(os.path.abspath(path))
         if dir_name and not os.path.exists(dir_name):
             os.makedirs(dir_name, exist_ok=True)
-        # Check write permissions
-        test_file = os.path.join(dir_name or '.', '.write_test')
-        with open(test_file, 'w') as f:
-            f.write('1')
-        if os.path.exists(test_file):
-            os.remove(test_file)
         return path
     except Exception:
-        # Fallback to /tmp if current directory is read-only (standard for Vercel/Lambda)
+        # Fallback to /tmp if current directory is read-only
         return '/tmp/auth.db'
 
 def get_db_connection():
