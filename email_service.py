@@ -199,27 +199,17 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
     If you did not request this code, please secure your account immediately.
     """
 
-    # 1. Try Brevo HTTP API first (Global delivery to ANY email address over standard HTTPS Port 443)
-    if Config.BREVO_API_KEY:
-        try:
-            success, msg = _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject)
-            if success:
-                return True, msg
-            print(f"[EMAIL SERVICE NOTICE] Brevo returned notice: {msg}. Attempting SMTP fallback...")
-        except Exception as e:
-            print(f"[EMAIL SERVICE ERROR - BREVO] {e}")
-
-    # 2. Try Gmail / SMTP credentials (if network allows SMTP ports)
+    # 1. Dispatch via official Gmail SMTP (Sends to ANY registered email address in the world)
     if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
         try:
             success, msg = _send_via_smtp(recipient_email, subject, html_content, text_content)
             if success:
                 return True, msg
-            print(f"[EMAIL SERVICE NOTICE] SMTP dispatch notice: {msg}. Attempting Resend fallback...")
+            print(f"[EMAIL SERVICE NOTICE] SMTP dispatch notice: {msg}. Trying alternate fallback...")
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - SMTP] {e}")
 
-    # 3. Try Resend HTTP API (if configured)
+    # 2. Resend HTTP API fallback (if configured)
     if Config.RESEND_API_KEY:
         try:
             success, msg = _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
@@ -228,7 +218,7 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
 
-    # 4. If nothing delivered
-    err_msg = "Could not deliver verification code. Please check your email address or try again."
+    # 3. If nothing delivered
+    err_msg = "Could not deliver verification email. Please check your email address."
     print(f"[EMAIL SERVICE WARNING] {err_msg}")
     return False, err_msg
