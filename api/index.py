@@ -37,18 +37,29 @@ try:
     from werkzeug.exceptions import HTTPException
 
     class VercelPrefixMiddleware:
-        """Normalize PATH_INFO when invoked from Vercel serverless rewrites."""
+        """Normalize PATH_INFO from real request path on Vercel."""
         def __init__(self, wsgi_app):
             self.wsgi_app = wsgi_app
 
         def __call__(self, environ, start_response):
-            path = environ.get('PATH_INFO', '')
-            if path.startswith('/api/index.py'):
-                environ['PATH_INFO'] = path[13:] or '/'
-            elif path.startswith('/api/index'):
-                environ['PATH_INFO'] = path[10:] or '/'
-            elif path.startswith('/api'):
-                environ['PATH_INFO'] = path[4:] or '/'
+            real_path = environ.get('HTTP_X_MATCHED_PATH') or environ.get('REQUEST_URI') or environ.get('RAW_URI')
+            if real_path:
+                clean_path = real_path.split('?')[0]
+                if clean_path.startswith('/api/index.py'):
+                    clean_path = clean_path[13:] or '/'
+                elif clean_path.startswith('/api/index'):
+                    clean_path = clean_path[10:] or '/'
+                elif clean_path.startswith('/api'):
+                    clean_path = clean_path[4:] or '/'
+                environ['PATH_INFO'] = clean_path
+            else:
+                path = environ.get('PATH_INFO', '')
+                if path.startswith('/api/index.py'):
+                    environ['PATH_INFO'] = path[13:] or '/'
+                elif path.startswith('/api/index'):
+                    environ['PATH_INFO'] = path[10:] or '/'
+                elif path.startswith('/api'):
+                    environ['PATH_INFO'] = path[4:] or '/'
             return self.wsgi_app(environ, start_response)
 
     app.wsgi_app = ProxyFix(VercelPrefixMiddleware(app.wsgi_app), x_for=1, x_proto=1, x_host=1, x_prefix=1)
