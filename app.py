@@ -25,6 +25,23 @@ app = Flask(
 )
 app.config.from_object(Config)
 
+class VercelPrefixMiddleware:
+    """Normalize PATH_INFO when invoked from Vercel serverless rewrites."""
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        path = environ.get('PATH_INFO', '')
+        if path.startswith('/api/index.py'):
+            environ['PATH_INFO'] = path[13:] or '/'
+        elif path.startswith('/api/index'):
+            environ['PATH_INFO'] = path[10:] or '/'
+        elif path.startswith('/api'):
+            environ['PATH_INFO'] = path[4:] or '/'
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPrefixMiddleware(app.wsgi_app)
+
 @app.before_request
 def security_middleware():
     """
@@ -418,6 +435,25 @@ def api_dev_latest_otp():
     email = request.args.get('email', '').strip().lower()
     otp_data = get_dev_latest_otp(email)
     return jsonify(otp_data or {'status': 'none'})
+
+@app.errorhandler(500)
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    import traceback
+    error_trace = traceback.format_exc()
+    print(f"[UNHANDLED EXCEPTION] {error_trace}")
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head><title>System Error</title><style>body{{font-family:sans-serif;background:#090d16;color:#f8fafc;padding:40px;}}pre{{background:#1e293b;padding:20px;border-radius:8px;overflow:auto;color:#f87171;}}</style></head>
+    <body>
+        <h2>Application Notice (500)</h2>
+        <p>An unexpected error occurred:</p>
+        <pre>{error}</pre>
+        <p><a href="/login" style="color:#38bdf8;">Return to Login</a></p>
+    </body>
+    </html>
+    """, 500
 
 if __name__ == '__main__':
     # Run the secure Flask server
