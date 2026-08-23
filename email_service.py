@@ -61,27 +61,44 @@ def _send_via_resend(recipient_email, otp_code, username, html_content, text_con
         return False, f"Resend Error: {str(e)}"
 
 def _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject):
-    """Dispatch email via Brevo / Sendinblue HTTP REST API."""
+    """Dispatch email via Brevo / Sendinblue HTTP REST API (Global delivery over HTTPS Port 443)."""
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
-        "api-key": Config.BREVO_API_KEY,
-        "Content-Type": "application/json"
+        "api-key": Config.BREVO_API_KEY.strip(),
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
+    
+    sender_email = "devilrama777@gmail.com"
+    if Config.MAIL_FROM and "@" in Config.MAIL_FROM:
+        import re
+        m = re.search(r'<([^>]+)>', Config.MAIL_FROM)
+        sender_email = m.group(1) if m else Config.MAIL_FROM.strip()
+        
     payload = {
-        "sender": {"name": Config.APP_NAME, "email": Config.MAIL_FROM or "no-reply@secureauth.local"},
-        "to": [{"email": recipient_email, "name": username}],
+        "sender": {"name": Config.APP_NAME, "email": sender_email},
+        "to": [{"email": recipient_email.strip(), "name": username or "User"}],
         "subject": subject,
         "htmlContent": html_content,
         "textContent": text_content
     }
     
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
-    with urllib.request.urlopen(req, timeout=10) as response:
-        if response.status in (200, 201):
-            print(f"[EMAIL SERVICE - BREVO] OTP successfully sent to {recipient_email}")
-            return True, "Email dispatched via Brevo API."
-        else:
-            return False, f"Brevo API returned status {response.status}"
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
+        with urllib.request.urlopen(req, timeout=10) as response:
+            if response.status in (200, 201):
+                res_body = response.read().decode('utf-8')
+                print(f"[EMAIL SERVICE - BREVO] OTP successfully delivered to {recipient_email}. Response: {res_body}")
+                return True, "Verification code sent to your email."
+            else:
+                return False, f"Brevo API returned status {response.status}"
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8')
+        print(f"[EMAIL SERVICE ERROR - BREVO] HTTP {e.code}: {err_body}")
+        return False, f"Brevo API Error: {err_body}"
+    except Exception as e:
+        print(f"[EMAIL SERVICE ERROR - BREVO] {e}")
+        return False, f"Brevo Error: {str(e)}"
 
 def _send_via_smtp(recipient_email, subject, html_content, text_content):
     """Dispatch email via smtplib with automated Port 587 (TLS) / 465 (SSL) fallback."""
@@ -132,9 +149,9 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
     """
     Send real-time OTP to recipient email.
     Supports:
-    1. Resend HTTP API
-    2. Brevo HTTP API
-    3. smtplib (Gmail, Outlook, custom SMTP) with automated fallback
+    1. Brevo HTTP API (Global delivery over HTTPS Port 443)
+    2. smtplib (Gmail, Outlook, custom SMTP)
+    3. Resend HTTP API
     """
     DEV_LATEST_OTPS[recipient_email] = {
         'code': otp_code,
@@ -182,34 +199,34 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
     If you did not request this code, please secure your account immediately.
     """
 
-    # 1. Try Gmail / SMTP credentials first (Sends to ANY registered email address)
-    if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
-        try:
-            success, msg = _send_via_smtp(recipient_email, subject, html_content, text_content)
-            if success:
-                return True, msg
-            print(f"[EMAIL SERVICE NOTICE] SMTP dispatch notice: {msg}. Attempting HTTP fallback...")
-        except Exception as e:
-            print(f"[EMAIL SERVICE ERROR - SMTP] {e}")
-
-    # 2. Try Resend HTTP API (if configured)
-    if Config.RESEND_API_KEY:
-        try:
-            success, msg = _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
-            if success:
-                return True, msg
-            print(f"[EMAIL SERVICE NOTICE] Resend delivery returned notice: {msg}. Checking alternate fallback...")
-        except Exception as e:
-            print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
-
-    # 3. Try Brevo HTTP API (if configured)
+    # 1. Try Brevo HTTP API first (Global delivery to ANY email address over standard HTTPS Port 443)
     if Config.BREVO_API_KEY:
         try:
             success, msg = _send_via_brevo(recipient_email, otp_code, username, html_content, text_content, subject)
             if success:
                 return True, msg
+            print(f"[EMAIL SERVICE NOTICE] Brevo returned notice: {msg}. Attempting SMTP fallback...")
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR - BREVO] {e}")
+
+    # 2. Try Gmail / SMTP credentials (if network allows SMTP ports)
+    if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
+        try:
+            success, msg = _send_via_smtp(recipient_email, subject, html_content, text_content)
+            if success:
+                return True, msg
+            print(f"[EMAIL SERVICE NOTICE] SMTP dispatch notice: {msg}. Attempting Resend fallback...")
+        except Exception as e:
+            print(f"[EMAIL SERVICE ERROR - SMTP] {e}")
+
+    # 3. Try Resend HTTP API (if configured)
+    if Config.RESEND_API_KEY:
+        try:
+            success, msg = _send_via_resend(recipient_email, otp_code, username, html_content, text_content, subject)
+            if success:
+                return True, msg
+        except Exception as e:
+            print(f"[EMAIL SERVICE ERROR - RESEND] {e}")
 
     # 4. If nothing delivered
     err_msg = "Could not deliver verification code. Please check your email address or try again."

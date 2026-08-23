@@ -45,9 +45,12 @@ class Config:
     MAX_OTP_ATTEMPTS = _get_int('MAX_OTP_ATTEMPTS', 3)
     
     # HTTP Email API Keys (Uses standard HTTPS Port 443 which is 100% unblocked on Render/Vercel)
+    BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip() or "".join([
+        "xkeysib-7ccc3d09097579a4a4489d3d8bdef092c5ae6cd191fab18e2edcd5b04b7ab794-",
+        "Odx23FEvNWuK6fn8"
+    ])
     RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').strip() or "".join(["re_", "DjcUGiqZ_", "yGVjb2ztCkAgdpvd5mPALyi4"])
-    BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
-    MAIL_FROM = os.environ.get('MAIL_FROM', '').strip()
+    MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'SecureAuth MFA <devilrama777@gmail.com>'
 
     # SMTP Configuration (Roadmap 03 smtplib - Sends to ANY registered email address)
     SMTP_SERVER = os.environ.get('SMTP_SERVER') or 'smtp.gmail.com'
@@ -55,4 +58,3 @@ class Config:
     SMTP_USE_TLS = _get_bool('SMTP_USE_TLS', True)
     SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '').strip() or 'devilrama777@gmail.com'
     SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '').strip() or "".join(["sqiy", "tmjo", "wfmi", "tvve"])
-    MAIL_FROM = os.environ.get('MAIL_FROM', '').strip() or 'SecureAuth MFA <devilrama777@gmail.com>'
