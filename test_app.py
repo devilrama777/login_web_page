@@ -1,20 +1,20 @@
 import os
+import re
 import unittest
 import pyotp
 from datetime import datetime, timedelta
 from app import app
-from database import init_db, query_db, execute_db, get_db_connection
+from database import init_db, query_db, execute_db
 from security import validate_password_strength, check_account_lockout, record_failed_login, reset_failed_login
 from auth import (
     create_user, get_user_by_identifier, verify_password,
     generate_and_send_email_otp, verify_email_otp, verify_totp_code
 )
-
+from email_service import get_dev_latest_otp
 from config import Config
 
 class MFASystemTestCase(unittest.TestCase):
     def setUp(self):
-        # Use an isolated test database in memory or temp file
         self.test_db = os.path.join(os.path.dirname(__file__), 'test_auth.db')
         self.orig_db = Config.DB_PATH
         Config.DB_PATH = self.test_db
@@ -32,6 +32,10 @@ class MFASystemTestCase(unittest.TestCase):
             except Exception:
                 pass
 
+    def _extract_csrf(self, html):
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+        return match.group(1) if match else None
+
     def test_01_password_policy(self):
         """Test password complexity requirements (Roadmap 02)."""
         valid, _ = validate_password_strength("weak")
@@ -40,7 +44,7 @@ class MFASystemTestCase(unittest.TestCase):
         valid, _ = validate_password_strength("NoDigitsOrSymbols!")
         self.assertFalse(valid)
         
-        valid, msg = validate_password_strength("SuperSecret123!")
+        valid, _ = validate_password_strength("SuperSecret123!")
         self.assertTrue(valid)
 
     def test_02_user_registration_and_hashing(self):
@@ -60,10 +64,8 @@ class MFASystemTestCase(unittest.TestCase):
         """Test account lockout after 5 consecutive failed login attempts (Roadmap 05 & 07)."""
         with app.test_request_context():
             user_id = create_user("locktest", "lock@example.com", "SecurePass123!", mfa_type="email")
-            user = get_user_by_identifier("locktest")
             
-            # Simulate 5 failed attempts
-            for i in range(5):
+            for _ in range(5):
                 record_failed_login(user_id, "127.0.0.1", "UnitTestAgent")
                 
             user_updated = get_user_by_identifier("locktest")
@@ -71,7 +73,6 @@ class MFASystemTestCase(unittest.TestCase):
             self.assertTrue(is_locked)
             self.assertGreater(remaining_mins, 0)
             
-            # Reset after successful login
             reset_failed_login(user_id)
             user_reset = get_user_by_identifier("locktest")
             is_locked_after, _ = check_account_lockout(user_reset)
@@ -83,38 +84,34 @@ class MFASystemTestCase(unittest.TestCase):
             user_id = create_user("emailmfa", "mfa@example.com", "SecurePass123!", mfa_type="email")
             user = get_user_by_identifier("emailmfa")
             
-            # Generate OTP
             success, msg, code = generate_and_send_email_otp(user)
             self.assertEqual(len(code), 6)
             
-            # 1. Incorrect OTP test
+            # Incorrect OTP
             is_valid, _ = verify_email_otp(user, "000000")
             self.assertFalse(is_valid)
             
-            # 2. Correct OTP test
-            is_valid, msg = verify_email_otp(user, code)
+            # Correct OTP
+            is_valid, _ = verify_email_otp(user, code)
             self.assertTrue(is_valid)
             
-            # 3. Replay attack test (OTP cannot be reused!)
+            # Replay attack prevention
             is_replay_valid, _ = verify_email_otp(user, code)
             self.assertFalse(is_replay_valid)
 
     def test_05_pyotp_totp_flow(self):
         """Test TOTP Authenticator verification via pyotp (Roadmap 04)."""
         with app.test_request_context():
-            user_id = create_user("totpuser", "totp@example.com", "SecurePass123!", mfa_type="totp")
+            create_user("totpuser", "totp@example.com", "SecurePass123!", mfa_type="totp")
             user = get_user_by_identifier("totpuser")
             self.assertIsNotNone(user['mfa_secret'])
             
-            # Generate valid TOTP code
             totp = pyotp.TOTP(user['mfa_secret'])
             current_code = totp.now()
             
-            # Verify valid code
             is_valid, _ = verify_totp_code(user, current_code)
             self.assertTrue(is_valid)
             
-            # Verify invalid code
             is_invalid, _ = verify_totp_code(user, "999999")
             self.assertFalse(is_invalid)
 
@@ -123,12 +120,58 @@ class MFASystemTestCase(unittest.TestCase):
         with app.test_request_context():
             create_user("legituser", "legit@example.com", "SecurePass123!", mfa_type="email")
             
-            # SQL Injection payloads in username/email
             sqli_user = get_user_by_identifier("legituser' OR '1'='1")
             self.assertIsNone(sqli_user)
             
             sqli_user2 = get_user_by_identifier("admin' --")
             self.assertIsNone(sqli_user2)
+
+    def test_07_full_http_lifecycle(self):
+        """Test complete HTTP registration, login, MFA, and logout flow."""
+        # 1. Register
+        res = self.client.get('/register')
+        csrf = self._extract_csrf(res.get_data(as_text=True))
+        
+        res = self.client.post('/register', data={
+            'csrf_token': csrf,
+            'username': 'e2e_user',
+            'email': 'e2e@domain.com',
+            'password': 'SecureE2EPass123!',
+            'confirm_password': 'SecureE2EPass123!',
+            'mfa_type': 'email'
+        }, follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+
+        # 2. Login
+        res = self.client.get('/login')
+        csrf = self._extract_csrf(res.get_data(as_text=True))
+        
+        res = self.client.post('/login', data={
+            'csrf_token': csrf,
+            'identifier': 'e2e_user',
+            'password': 'SecureE2EPass123!'
+        }, follow_redirects=False)
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(res.headers['Location'].endswith('/mfa/verify'))
+
+        # 3. Verify OTP
+        res = self.client.get('/mfa/verify')
+        csrf = self._extract_csrf(res.get_data(as_text=True))
+        otp_info = get_dev_latest_otp('e2e@domain.com')
+        code = otp_info['code']
+
+        res = self.client.post('/mfa/verify', data={
+            'csrf_token': csrf,
+            'code_1': code[0], 'code_2': code[1], 'code_3': code[2],
+            'code_4': code[3], 'code_5': code[4], 'code_6': code[5]
+        }, follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('Security Dashboard', res.get_data(as_text=True))
+
+        # 4. Logout
+        res = self.client.get('/logout', follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('You have been securely signed out', res.get_data(as_text=True))
 
 if __name__ == '__main__':
     unittest.main()
