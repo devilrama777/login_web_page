@@ -149,15 +149,19 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
     """
     Send real-time OTP to recipient email.
     Supports:
-    1. Brevo HTTP API (Global delivery over HTTPS Port 443)
-    2. smtplib (Gmail, Outlook, custom SMTP)
-    3. Resend HTTP API
+    1. Gmail SMTP (with Google App Password)
+    2. Resend HTTP API
     """
     DEV_LATEST_OTPS[recipient_email] = {
         'code': otp_code,
         'timestamp': datetime.now().isoformat(),
         'username': username
     }
+    
+    # Suppress real SMTP dispatch for dummy test domains to prevent Google bounce-backs
+    if recipient_email.endswith(('@example.com', '@domain.com', '@test.local', '@test.com')):
+        print(f"[EMAIL SERVICE - TEST MOCK] Suppressed live SMTP dispatch for test domain: {recipient_email}")
+        return True, "Verification code sent to your email."
     
     subject = f"Your {Config.APP_NAME} Verification Code: {otp_code}"
     
