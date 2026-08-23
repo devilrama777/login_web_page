@@ -33,6 +33,26 @@ try:
     )
     app.config.from_object(Config)
 
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    from werkzeug.exceptions import HTTPException
+
+    class VercelPrefixMiddleware:
+        """Normalize PATH_INFO when invoked from Vercel serverless rewrites."""
+        def __init__(self, wsgi_app):
+            self.wsgi_app = wsgi_app
+
+        def __call__(self, environ, start_response):
+            path = environ.get('PATH_INFO', '')
+            if path.startswith('/api/index.py'):
+                environ['PATH_INFO'] = path[13:] or '/'
+            elif path.startswith('/api/index'):
+                environ['PATH_INFO'] = path[10:] or '/'
+            elif path.startswith('/api'):
+                environ['PATH_INFO'] = path[4:] or '/'
+            return self.wsgi_app(environ, start_response)
+
+    app.wsgi_app = ProxyFix(VercelPrefixMiddleware(app.wsgi_app), x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     @app.before_request
     def security_middleware():
         """
@@ -430,6 +450,8 @@ try:
     @app.errorhandler(500)
     @app.errorhandler(Exception)
     def handle_unexpected_error(error):
+        if isinstance(error, HTTPException):
+            return error
         error_trace = traceback.format_exc()
         print(f"[UNHANDLED EXCEPTION] {error_trace}")
         return f"""
