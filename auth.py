@@ -66,21 +66,15 @@ def generate_totp_qr_data_url(user):
         issuer_name=Config.APP_NAME
     )
     
-    # Create QR Code image in memory
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=8,
-        border=3,
-    )
-    qr.add_data(provisioning_uri)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="#0f172a", back_color="#ffffff")
+    # Create pure SVG vector QR Code (lightweight, crisp, zero C dependencies)
+    import qrcode.image.svg
+    factory = qrcode.image.svg.SvgPathImage
+    svg_img = qrcode.make(provisioning_uri, image_factory=factory)
     
     buf = io.BytesIO()
-    img.save(buf, format='PNG')
+    svg_img.save(buf)
     qr_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    qr_data_url = f"data:image/png;base64,{qr_b64}"
+    qr_data_url = f"data:image/svg+xml;base64,{qr_b64}"
     
     return qr_data_url, secret
 
