@@ -91,6 +91,8 @@ def inject_template_globals():
 # ----------------------------------------------------------------------
 
 @app.route('/')
+@app.route('/api/index')
+@app.route('/api')
 def index():
     if g.get('current_user'):
         return redirect(url_for('dashboard'))
