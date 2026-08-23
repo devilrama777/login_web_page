@@ -33,6 +33,7 @@ try:
     )
     app.config.from_object(Config)
 
+    import urllib.parse
     from werkzeug.middleware.proxy_fix import ProxyFix
     from werkzeug.exceptions import HTTPException
 
@@ -42,32 +43,25 @@ try:
             self.wsgi_app = wsgi_app
 
         def __call__(self, environ, start_response):
-            raw_candidates = [
-                environ.get('HTTP_X_VERCEL_PATH'),
-                environ.get('HTTP_X_FORWARDED_URI'),
-                environ.get('HTTP_X_ORIGINAL_URI'),
-                environ.get('REQUEST_URI'),
-                environ.get('RAW_URI'),
-                environ.get('PATH_INFO')
-            ]
+            # 1. Parse __path from Vercel query string rewrite
+            query_string = environ.get('QUERY_STRING', '')
+            if '__path=' in query_string:
+                params = urllib.parse.parse_qs(query_string)
+                if '__path' in params and params['__path']:
+                    subpath = params['__path'][0].lstrip('/')
+                    environ['PATH_INFO'] = '/' + subpath if subpath else '/'
+                    return self.wsgi_app(environ, start_response)
             
-            chosen_path = None
-            for candidate in raw_candidates:
-                if candidate and candidate not in ('/api/index.py', '/api/index', '/api'):
-                    chosen_path = candidate.split('?')[0]
-                    break
-                    
-            if not chosen_path:
-                chosen_path = '/'
+            # 2. Fallback to standard path candidates
+            path = environ.get('PATH_INFO', '')
+            if path.startswith('/api/index.py'):
+                path = path[13:] or '/'
+            elif path.startswith('/api/index'):
+                path = path[10:] or '/'
+            elif path.startswith('/api'):
+                path = path[4:] or '/'
                 
-            if chosen_path.startswith('/api/index.py'):
-                chosen_path = chosen_path[13:] or '/'
-            elif chosen_path.startswith('/api/index'):
-                chosen_path = chosen_path[10:] or '/'
-            elif chosen_path.startswith('/api'):
-                chosen_path = chosen_path[4:] or '/'
-                
-            environ['PATH_INFO'] = chosen_path
+            environ['PATH_INFO'] = path or '/'
             return self.wsgi_app(environ, start_response)
 
     app.wsgi_app = ProxyFix(VercelPrefixMiddleware(app.wsgi_app), x_for=1, x_proto=1, x_host=1, x_prefix=1)
