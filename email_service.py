@@ -79,13 +79,58 @@ def _send_via_brevo(recipient_email, otp_code, username, html_content, text_cont
         else:
             return False, f"Brevo API returned status {response.status}"
 
+def _send_via_smtp(recipient_email, subject, html_content, text_content):
+    """Dispatch email via smtplib with automated Port 587 (TLS) / 465 (SSL) fallback."""
+    smtp_user = Config.SMTP_USERNAME.strip()
+    smtp_pass = Config.SMTP_PASSWORD.replace(" ", "").strip()
+    smtp_server = Config.SMTP_SERVER.strip() or 'smtp.gmail.com'
+    sender = Config.MAIL_FROM.strip() if Config.MAIL_FROM else smtp_user
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = recipient_email
+    msg.attach(MIMEText(text_content, "plain"))
+    msg.attach(MIMEText(html_content, "html"))
+
+    ports_to_try = [int(Config.SMTP_PORT or 587)]
+    if 587 in ports_to_try:
+        ports_to_try.append(465)
+    elif 465 in ports_to_try:
+        ports_to_try.append(587)
+
+    last_error = ""
+    for port in ports_to_try:
+        try:
+            if port == 465:
+                with smtplib.SMTP_SSL(smtp_server, port, timeout=12) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_server, port, timeout=12) as server:
+                    if Config.SMTP_USE_TLS:
+                        server.starttls()
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            print(f"[EMAIL SERVICE - SMTP] Successfully dispatched OTP email to {recipient_email} via port {port}")
+            return True, "Verification code sent to your email."
+        except smtplib.SMTPAuthenticationError as auth_err:
+            last_error = "Gmail Authentication Failed: Please verify that you are using a 16-character Google App Password (not your regular account password)."
+            print(f"[EMAIL SERVICE ERROR - SMTP AUTH] {auth_err}")
+            break
+        except Exception as e:
+            last_error = str(e)
+            print(f"[EMAIL SERVICE NOTICE] SMTP attempt on port {port} encountered: {e}. Trying alternate port...")
+
+    return False, f"SMTP Delivery Error: {last_error}"
+
 def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5):
     """
     Send real-time OTP to recipient email.
     Supports:
-    1. Resend HTTP API (Vercel recommended)
+    1. Resend HTTP API
     2. Brevo HTTP API
-    3. smtplib (Gmail, Outlook, custom SMTP)
+    3. smtplib (Gmail, Outlook, custom SMTP) with automated fallback
     """
     DEV_LATEST_OTPS[recipient_email] = {
         'code': otp_code,
@@ -154,36 +199,9 @@ def send_otp_email(recipient_email, otp_code, username="User", expiry_minutes=5)
 
     # 3. Try smtplib credentials (Gmail, Outlook, custom SMTP)
     if Config.SMTP_SERVER and Config.SMTP_USERNAME and Config.SMTP_PASSWORD:
-        try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = Config.MAIL_FROM or Config.SMTP_USERNAME
-            msg["To"] = recipient_email
-            
-            part1 = MIMEText(text_content, "plain")
-            part2 = MIMEText(html_content, "html")
-            msg.attach(part1)
-            msg.attach(part2)
-            
-            if int(Config.SMTP_PORT) == 465:
-                with smtplib.SMTP_SSL(Config.SMTP_SERVER, Config.SMTP_PORT, timeout=15) as server:
-                    server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
-                    server.send_message(msg)
-            else:
-                with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT, timeout=15) as server:
-                    if Config.SMTP_USE_TLS:
-                        server.starttls()
-                    server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
-                    server.send_message(msg)
-                
-            print(f"[EMAIL SERVICE - SMTP] Successfully sent OTP email to {recipient_email}")
-            return True, "Verification code sent to your email."
-        except Exception as e:
-            error_details = str(e)
-            print(f"[EMAIL SERVICE ERROR - SMTP] Failed to send email via SMTP: {error_details}")
-            return False, f"SMTP Error: {error_details}"
+        return _send_via_smtp(recipient_email, subject, html_content, text_content)
 
     # 4. If nothing configured
-    err_msg = "No email credentials configured. Please set SMTP_USERNAME/SMTP_PASSWORD (for Gmail/SMTP) or RESEND_API_KEY in environment variables."
+    err_msg = "No email credentials configured. Please set SMTP_USERNAME and SMTP_PASSWORD (Google App Password) in environment variables."
     print(f"[EMAIL SERVICE WARNING] {err_msg}")
     return False, err_msg
